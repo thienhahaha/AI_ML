@@ -1,13 +1,9 @@
-
-from __future__ import print_function
-
 import numpy as np
 import matplotlib.pyplot as plt
-import sklearn
 
 print("NumPy:", np.__version__)
-print("Scikit-learn:", sklearn.__version__)
 print("Matplotlib:", plt.matplotlib.__version__)
+
 
 # ==============================
 # 1. DATASET
@@ -23,6 +19,7 @@ y = np.array([
     62, 63, 64, 66, 67, 68
 ])
 
+
 # ==============================
 # 2. NORMALIZE DATA
 # ==============================
@@ -32,11 +29,59 @@ X_std = X.std()
 
 X_scaled = (X - X_mean) / X_std
 
-# Add bias
-X_bias = np.vstack((X_scaled.T, np.ones(X.shape[0])))
+# Thêm bias: mỗi cột của X_bias là một điểm dữ liệu [x_scaled, 1]^T
+X_bias = np.vstack((X_scaled.T, np.ones(X.shape[0])))   # shape (2, N)
+
 
 # ==============================
-# 3. INITIALIZE PARAMETERS
+# 3. CÁC HÀM CƠ BẢN (viết rõ ràng)
+# ==============================
+
+def predict_one(w, x_i):
+    """Dự đoán cho MỘT điểm dữ liệu: y_pred_i = w^T x_i"""
+    return (w.T @ x_i).item()
+
+
+def loss_one(w, x_i, y_i):
+    """
+    Mất mát của MỘT điểm dữ liệu:
+
+        l_i = 1/2 * (w^T x_i - y_i)^2
+    """
+    y_pred_i = predict_one(w, x_i)
+    error_i = y_pred_i - y_i
+    return 0.5 * error_i ** 2
+
+
+def compute_loss(w, X_bias, y):
+    """
+    Hàm mất mát trên TOÀN BỘ tập dữ liệu (trung bình của mất mát từng điểm):
+
+        L(w) = 1/N * sum_{i=1..N} 1/2 * (w^T x_i - y_i)^2
+    """
+    N = X_bias.shape[1]
+    total = 0.0
+
+    for i in range(N):                 # duyệt từng điểm dữ liệu
+        x_i = X_bias[:, i:i+1]         # shape (2, 1)
+        y_i = y[i]
+        total += loss_one(w, x_i, y_i) # cộng dồn mất mát của điểm i
+
+    return total / N                   # chia N để lấy trung bình
+
+
+def gradient_one(w, x_i, y_i):
+    """
+    Gradient của mất mát MỘT điểm theo w:
+
+        d l_i / d w = (w^T x_i - y_i) * x_i
+    """
+    error_i = predict_one(w, x_i) - y_i
+    return error_i * x_i
+
+
+# ==============================
+# 4. INITIALIZE PARAMETERS
 # ==============================
 
 w = np.zeros((2, 1))
@@ -52,39 +97,25 @@ best_loss = float("inf")
 best_w = w.copy()
 wait = 0
 
+N = X_bias.shape[1]
+
+
 # ==============================
-# 4. STOCHASTIC GRADIENT DESCENT
+# 5. STOCHASTIC GRADIENT DESCENT
 # ==============================
 
 for epoch in range(epochs):
 
-    # Train through all data points
-    for i in range(X_bias.shape[1]):
-
+    # --- Cập nhật w sau MỖI điểm dữ liệu ---
+    for i in range(N):
         x_i = X_bias[:, i:i+1]
         y_i = y[i]
 
-        # Forward
-        y_pred = w.T @ x_i
-
-        # Error
-        error = y_pred.item() - y_i
-
-        # Gradient
-        dw = error * x_i
-
-        # Update weights
+        dw = gradient_one(w, x_i, y_i)
         w = w - eta * dw
 
-    # ==============================
-    # 5. CALCULATE LOSS AFTER EPOCH
-    # ==============================
-
-    y_pred_all = (w.T @ X_bias).ravel()
-
-    errors = y_pred_all - y
-
-    loss = np.mean(errors ** 2)
+    # --- Tính loss trên toàn bộ dữ liệu sau mỗi epoch ---
+    loss = compute_loss(w, X_bias, y)
 
     # Check numerical stability
     if not np.isfinite(loss) or not np.all(np.isfinite(w)):
@@ -98,16 +129,11 @@ for epoch in range(epochs):
             f"w = {w.ravel()}"
         )
 
-    # ==============================
-    # 6. EARLY STOPPING
-    # ==============================
-
+    # --- Early stopping ---
     if loss < best_loss - min_delta:
-
         best_loss = loss
         best_w = w.copy()
         wait = 0
-
     else:
         wait += 1
 
@@ -118,8 +144,9 @@ for epoch in range(epochs):
 # Restore best weights
 w = best_w
 
+
 # ==============================
-# 7. FINAL RESULT
+# 6. FINAL RESULT
 # ==============================
 
 print("\nFinal w (normalized):")
@@ -135,14 +162,14 @@ intercept = w[1, 0] - slope * X_mean
 print("\nRegression equation:")
 print(f"y = {slope:.6f}x + ({intercept:.6f})")
 
+
 # ==============================
-# 9. VISUALIZATION
+# 7. VISUALIZATION
 # ==============================
 
 plt.scatter(X, y, label="Actual data")
 
 x_line = np.linspace(145, 185, 100).reshape(-1, 1)
-
 y_line = slope * x_line + intercept
 
 plt.plot(
