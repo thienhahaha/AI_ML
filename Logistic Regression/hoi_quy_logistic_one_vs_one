@@ -118,7 +118,7 @@ for i in range(n_classes):
 
 def predict_ovo(models, Xbar, n_classes):
     M = Xbar.shape[1]
-    votes = np.zeros((M, n_classes))
+    votes = np.zeros((M, n_classes)) # moi hang la 1 anh can du doan, 1 anh can du doanthuoc 10 lop
     prob_sum = np.zeros((M, n_classes)) # tong xac suat
 
     for (i, j), w in models.items():
@@ -129,6 +129,22 @@ def predict_ovo(models, Xbar, n_classes):
         votes[~vote_j, i] += 1
         prob_sum[:, j] += p
         prob_sum[:, i] += 1 - p
+
+        # giai thich de hieu : dau tien 
+
+        # votes = 
+        # [[0, 0, 0],     ← mẫu 0
+        # [0, 0, 0],      ← mẫu 1
+        # [0, 0, 0],      ← mẫu 2
+        # [0, 0, 0]]      ← mẫu 3
+
+        # p = [0.3, 0.8, 0.7, 0.1] => 
+
+        # vote_j  = [False, True, True, False]
+        # ~vote_j = [True, False, False, True]
+
+        # => di kiem votes[(true)][j] chon roi votes[(false)][i] chon
+        # ... roi chon tk co xac suat cao nhat
 
     # prob_sum tối đa 9 (mỗi lớp chỉ có 9 cặp), chia 10 để luôn < 1 phiếu
     score = votes + prob_sum / n_classes
