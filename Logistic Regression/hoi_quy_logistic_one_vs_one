@@ -117,7 +117,7 @@ for i in range(n_classes):
 
 
 def predict_ovo(models, Xbar, n_classes):
-    M = Xbar.shape[1]
+    M = Xbar.shape[1] # so luonganh can du doan
     votes = np.zeros((M, n_classes)) # moi hang la 1 anh can du doan, 1 anh can du doanthuoc 10 lop
     prob_sum = np.zeros((M, n_classes)) # tong xac suat
 
