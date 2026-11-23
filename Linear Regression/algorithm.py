@@ -1,188 +1,112 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-print("NumPy:", np.__version__)
-print("Matplotlib:", plt.matplotlib.__version__)
+from mnist_loader import load_mnist
 
 
-# ==============================
-# 1. DATASET
-# ==============================
+# =================================   DATASETS   ============================
 
-X = np.array([
-    [147, 150, 153, 158, 163, 165, 168,
-     170, 173, 175, 178, 180, 183]
-]).T
+np.random.seed(18)
+data, target = load_mnist()
+target = target.astype(int)   # đổi sang int trước khi so sánh
 
-y = np.array([
-    49, 50, 51, 54, 58, 59, 60,
-    62, 63, 64, 66, 67, 68
-])
+N = 2000
+idx = np.random.choice(data.shape[0], N, replace=False)
+X = (data[idx] / 255.0).T  # data[idx] là (N, 784) nên chuyển vị: X có shape (784, N), mỗi mẫu là một CỘT
+Y = target[idx]            # shape (N,)
 
-
-# ==============================
-# 2. NORMALIZE DATA
-# ==============================
-
-X_mean = X.mean()
-X_std = X.std()
-
-X_scaled = (X - X_mean) / X_std
-
-# Thêm bias: mỗi cột của X_bias là một điểm dữ liệu [x_scaled, 1]^T
-X_bias = np.vstack((X_scaled.T, np.ones(X.shape[0])))   # shape (2, N)
+d = X.shape[0]                # 784 (số chiều = số hàng của X)
 
 
-# ==============================
-# 3. CÁC HÀM CƠ BẢN (viết rõ ràng)
-# ==============================
+# ================================== THEM BIAS   ===========================
+# Quy ước dùng xuyên suốt file: MỖI MẪU LÀ MỘT CỘT, Xbar có shape (d+1, N)
 
-def predict_one(w, x_i):
-    """Dự đoán cho MỘT điểm dữ liệu: y_pred_i = w^T x_i"""
-    return (w.T @ x_i).item()
-
-
-def loss_one(w, x_i, y_i):
-    """
-    Mất mát của MỘT điểm dữ liệu:
-
-        l_i = 1/2 * (w^T x_i - y_i)^2
-    """
-    y_pred_i = predict_one(w, x_i)
-    error_i = y_pred_i - y_i
-    return 0.5 * error_i ** 2
+def add_bias(X_std):
+    """X_std shape (d, M) -> thêm hàng toàn số 1 ở cuối -> shape (d+1, M)."""
+    return np.concatenate((X_std, np.ones((1, X_std.shape[1]))), axis=0)
 
 
-def compute_loss(w, X_bias, y):
-    """
-    Hàm mất mát trên TOÀN BỘ tập dữ liệu (trung bình của mất mát từng điểm):
-
-        L(w) = 1/N * sum_{i=1..N} 1/2 * (w^T x_i - y_i)^2
-    """
-    N = X_bias.shape[1]
-    total = 0.0
-
-    for i in range(N):                 # duyệt từng điểm dữ liệu
-        x_i = X_bias[:, i:i+1]         # shape (2, 1)
-        y_i = y[i]
-        total += loss_one(w, x_i, y_i) # cộng dồn mất mát của điểm i
-
-    return total / N                   # chia N để lấy trung bình
+Xbar = add_bias(X)            # X: (784, N) -> Xbar: (785, N)
+print("Xbar:", Xbar.shape, "| Y:", Y.shape)
 
 
-def gradient_one(w, x_i, y_i):
-    """
-    Gradient của mất mát MỘT điểm theo w:
 
-        d l_i / d w = (w^T x_i - y_i) * x_i
-    """
-    error_i = predict_one(w, x_i) - y_i
-    return error_i * x_i
+# ================================== TACH TRAIN / TEST   ===========================
 
 
-# ==============================
-# 4. INITIALIZE PARAMETERS
-# ==============================
+n_train = int(0.8 * N)                        # 1600
 
-w = np.zeros((2, 1))
-
-eta = 0.01
-epochs = 10000
-
-# Early stopping parameters
-patience = 30
-min_delta = 1e-10
-
-best_loss = float("inf")
-best_w = w.copy()
-wait = 0
-
-N = X_bias.shape[1]
+Xbar_train, Xbar_test = Xbar[:, :n_train], Xbar[:, n_train:]    # (785, 1600), (785, 400)
+Y_train, Y_test = Y[:n_train], Y[n_train:]                      # (1600,), (400,)
+print("train:", Xbar_train.shape, Y_train.shape, "| test:", Xbar_test.shape, Y_test.shape)
 
 
-# ==============================
-# 5. STOCHASTIC GRADIENT DESCENT
-# ==============================
 
-for epoch in range(epochs):
-
-    # --- Cập nhật w sau MỖI điểm dữ liệu ---
-    for i in range(N):
-        x_i = X_bias[:, i:i+1]
-        y_i = y[i]
-
-        dw = gradient_one(w, x_i, y_i)
-        w = w - eta * dw
-
-    # --- Tính loss trên toàn bộ dữ liệu sau mỗi epoch ---
-    loss = compute_loss(w, X_bias, y)
-
-    # Check numerical stability
-    if not np.isfinite(loss) or not np.all(np.isfinite(w)):
-        print("\nNumerical instability detected!")
-        break
-
-    if epoch % 100 == 0:
-        print(
-            f"Epoch {epoch}: "
-            f"Loss = {loss:.10f}, "
-            f"w = {w.ravel()}"
-        )
-
-    # --- Early stopping ---
-    if loss < best_loss - min_delta:
-        best_loss = loss
-        best_w = w.copy()
-        wait = 0
-    else:
-        wait += 1
-
-    if wait >= patience:
-        print(f"\nEarly stopping at epoch {epoch}")
-        break
-
-# Restore best weights
-w = best_w
+# ================================== HOI QUY TUYEN TINH   ===========================
 
 
-# ==============================
-# 6. FINAL RESULT
-# ==============================
 
-print("\nFinal w (normalized):")
-print(w)
-
-print("\nFinal Loss:")
-print(best_loss)
-
-# Convert weights back to original scale
-slope = w[0, 0] / X_std
-intercept = w[1, 0] - slope * X_mean
-
-print("\nRegression equation:")
-print(f"y = {slope:.6f}x + ({intercept:.6f})")
+w_init = np.zeros(d + 1)      # shape (785,)
+eta = 0.001
+epochs = 2000
 
 
-# ==============================
-# 7. VISUALIZATION
-# ==============================
+def predict(w, Xbar):
+    return w @ Xbar
 
-plt.scatter(X, y, label="Actual data")
 
-x_line = np.linspace(145, 185, 100).reshape(-1, 1)
-y_line = slope * x_line + intercept
+def loss(w, Xbar, Y):
+    return 0.5 * np.mean((predict(w, Xbar) - Y) ** 2)
 
-plt.plot(
-    x_line,
-    y_line,
-    color="red",
-    label="Regression line"
-)
 
-plt.xlabel("Height (cm)")
-plt.ylabel("Weight (kg)")
-plt.title("Linear Regression using SGD")
+def linear_regression(w_init, Xbar, Y, eta, epochs):
+    w = w_init.copy()
+    N = Xbar.shape[1]                     
+    loss_history = []
 
-plt.legend()
-plt.grid(True)
+    for epoch in range(epochs):
+        for i in np.random.permutation(N):
+            x_i = Xbar[:, i]         
+            y_i = Y[i]
+
+            # tong tuyen tinh
+            z = predict(w, x_i)
+
+            # toi uu w
+            dw = (z - y_i) * x_i  
+            w = w - eta * dw
+
+        loss_history.append(loss(w, Xbar, Y))
+
+        if epoch % 100 == 0:
+            print(f"epoch {epoch}: loss = {loss_history[-1]:.4f}")
+
+    return w, loss_history
+
+
+w, loss_history = linear_regression(w_init, Xbar_train, Y_train, eta, epochs)
+
+
+
+# ================================== DANH GIA   ===========================
+
+
+
+y_pred_train = predict(w, Xbar_train)
+y_pred_test = predict(w, Xbar_test)
+
+print("MSE train:", np.mean((y_pred_train - Y_train) ** 2))
+print("MSE test :", np.mean((y_pred_test - Y_test) ** 2))
+
+# Mốc so sánh: luôn đoán giá trị trung bình của Y_train
+print("MSE khi luôn đoán trung bình:", np.mean((Y_test - Y_train.mean()) ** 2))
+
+# Nhãn là chữ số 0..9 nên có thể làm tròn để so với nhãn thật (chỉ mang tính tham khảo)
+acc_test = np.mean(np.clip(np.round(y_pred_test), 0, 9) == Y_test)
+print("Accuracy test sau khi làm tròn:", acc_test)
+
+plt.plot(loss_history)
+plt.xlabel("epoch")
+plt.ylabel("loss (MSE / 2)")
+plt.title("Loss theo epoch")
 plt.show()
