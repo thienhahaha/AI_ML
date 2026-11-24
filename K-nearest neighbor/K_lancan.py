@@ -145,7 +145,9 @@ def knn_predict(Xbar_train, Y_train, Xbar_test, k):
     D = diss_ss_fast(Xbar_test, Xbar_train)
 
     # sắp xếp từng hàng của D tăng dần, lấy chỉ số của k mẫu train gần nhất, shape (M, k)
-    order = np.argsort(D, axis=1)
+    order = np.argsort(D, axis=1) # khac voi sort, argsort la sap xep tra ve index chu ko phai value
+    # vidu : sort (1, 3, 5 ,4, 6) thanh (1, 3, 4, 5, 6)
+    # argsort : thanh (0, 1, 3, 2, 4)
     nearest = order[:, :k]
 
     # nhãn của k láng giềng, shape (M, k)
@@ -162,8 +164,8 @@ def knn_predict(Xbar_train, Y_train, Xbar_test, k):
 
 # ================================== DANH GIA   ===========================
 
-ks = [1, 3, 5, 7, 9, 11]
-accs = []
+ks = [1, 3, 5, 7, 9, 11] # chon so luong k (chon cai nao xin nhat)
+accs = [] # accuracy ung voi tung k
 for k in ks:
     y_pred_test = knn_predict(Xbar_train, Y_train, Xbar_test, k)
     acc = np.mean(y_pred_test == Y_test)
